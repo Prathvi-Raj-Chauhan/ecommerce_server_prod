@@ -1,7 +1,16 @@
 const mongoose = require("mongoose");
 const PRODUCT = require("./MODELS/products");
-
-mongoose.connect("mongodb://mongo:27017/Ecommerce");
+require('dotenv').config();
+mongoose.connect(process.env.MONGODB_CLUSTER_URL, {
+  dbName: "Ecommerce",
+  // maxPoolSize: 10,
+  serverSelectionTimeoutMS: 5000,
+})
+.then(()=> console.log("MongoDB Connected"))
+.catch(err => {
+  console.error("MongoDB Error:", err);
+  process.exit(1);
+});
 
 const products = [];
 

@@ -33,8 +33,10 @@ async function getAllProducts(req, res) {
 
     if (cachedData) {
       console.log("sent from cache");
-      return res.status(200).json(JSON.parse(cachedData));
+      // Upstash already returns parsed JSON, no need to JSON.parse
+      return res.status(200).json(cachedData);
     }
+    
     const [newArrivals, hotProduct, topSellers, topDiscounts] =
       await Promise.all([
         PRODUCT.find({ Pstatus: "Active" })
@@ -71,7 +73,7 @@ async function getAllProducts(req, res) {
       ]);
 
     console.log("ALL PRODUCTS SENT");
-    // Process all product arrays to truncate descriptions
+    
     const responseData = {
       newArrivals: processProducts(newArrivals),
       hotProducts: processProducts(hotProduct),
@@ -79,7 +81,9 @@ async function getAllProducts(req, res) {
       topDiscounts: processProducts(topDiscounts),
     };
 
-    await redisClient.setEx(cacheKey, 300, JSON.stringify(responseData));
+    // Use 'setex' (lowercase) for Upstash, and it handles JSON automatically
+    await redisClient.setex(cacheKey, 300, responseData);
+    
     return res.json(responseData);
   } catch (err) {
     return res.status(500).json({ error: err.message });
