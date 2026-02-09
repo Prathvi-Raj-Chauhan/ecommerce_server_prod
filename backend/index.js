@@ -49,11 +49,11 @@ app.use(express.urlencoded({extended: false}))
 app.use(express.json())
 
 // ✅ API routes FIRST
+app.use('/user', userRoutes)
+app.use('/admin', adminRoutes)
 app.get("/", (req, res) => {
   res.send("Server is running 🚀");
 });
-app.use('/user', userRoutes)
-app.use('/admin', adminRoutes)
 
 
 app.listen(PORT,'0.0.0.0', () => console.log(`Server Started successfully at PORT - ${PORT}`))
