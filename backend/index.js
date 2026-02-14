@@ -34,6 +34,7 @@ app.use(cookieParser());
 
 const allowedOrigins = [
   "http://localhost:51732",
+  "https://ecommerce-2831d.web.app"
   // frontend url also
 ];
 
