@@ -101,7 +101,7 @@ async function getSpecificProduct(req, res) {
 
     if (!product) return res.status(404).json({ error: "Product not found" });
 
-    PRODUCT.findByIdAndUpdate(productId, { $inc: { views: 1 } }).catch(
+    PRODUCT.findByIdAndUpdate(productId, { $inc: { views: 1 } }, {new : true}).catch(
       console.error,
     );
 
@@ -605,6 +605,7 @@ async function handlePlacingOrder(req, res) {
       },
 
       { session },
+      {new : true}
     );
 
     await session.commitTransaction();
@@ -661,6 +662,7 @@ async function handlePlacingCartOrder(req, res) {
           },
         },
         { session },
+        {new : true}
       );
     }
 

@@ -166,6 +166,13 @@ productSchema.pre("findOneAndUpdate", function () {
   // The discount would be incorrect without both values
 });
 
+productSchema.post("findOneAndUpdate", async function (doc) {
+  if (doc) {
+    const hotness = doc.views * 0.5 + doc.discountedPrice * 0.3 + doc.soldCount * 0.2;
+    doc.hotness = Math.round(hotness * 100) / 100;
+    await doc.save();
+  }
+});
 productSchema.index({ soldCount: -1 });
 productSchema.index({ views: -1 });
 productSchema.index({ "rating.avg": -1 });
@@ -178,6 +185,7 @@ productSchema.index({
   description: "text",
   tags: "text",
 });
+
 
 const Product = model("Product", productSchema);
 
