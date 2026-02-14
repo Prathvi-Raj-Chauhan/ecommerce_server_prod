@@ -286,13 +286,10 @@ async function handleDeleteProduct(req, res) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    await PRODUCT.findByIdAndDelete(productId);
+    await PRODUCT.findByIdAndUpdate(productId, { Pstatus: "Disabled" });
     await redisClient.del("home:products:v1");
 
-    //  delete reviews / media
-    // await productReview.deleteMany({ _id: { $in: product.reviews } });
-
-    return res.json({ message: "Product deleted successfully" });
+    return res.json({ message: "Product marked as Disabled successfully" });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

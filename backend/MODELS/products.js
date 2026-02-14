@@ -109,6 +109,7 @@ const productSchema = Schema(
   },
   { timestamps: true },
 );
+
 productSchema.pre("save", function () {
   // Only recalculate if price or discountedPrice changed
   if (!this.isModified("price") && !this.isModified("discountedPrice")) {
@@ -117,7 +118,7 @@ productSchema.pre("save", function () {
 
   if (!this.discountedPrice || this.discountedPrice >= this.price) {
     this.discountPercent = 0;
-    return ;
+    return;
   }
 
   const discount = ((this.price - this.discountedPrice) / this.price) * 100;
@@ -127,30 +128,44 @@ productSchema.pre("save", function () {
 
   return;
 });
+
 productSchema.pre("findOneAndUpdate", function () {
   const update = this.getUpdate();
 
-  const price = update.price ?? update.$set?.price;
-  const discountedPrice =
-    update.discountedPrice ?? update.$set?.discountedPrice;
+  // Check all possible locations for price/discountedPrice
+  const priceInUpdate = update.price ?? update.$set?.price;
+  const discountedPriceInUpdate = update.discountedPrice ?? update.$set?.discountedPrice;
 
-  if (!price || !discountedPrice || price <= 0 || discountedPrice >= price) {
-    update.$set = {
-      ...(update.$set || {}),
-      discountPercent: 0,
-    };
+  // CRITICAL FIX: Only recalculate if BOTH price and discountedPrice are being updated
+  // If neither is being updated, exit immediately without touching anything
+  if (priceInUpdate === undefined && discountedPriceInUpdate === undefined) {
     return;
   }
 
-  const discount = ((price - discountedPrice) / price) * 100;
+  // If we reach here, at least one price field is being updated
+  // We need both values to calculate discount
+  if (priceInUpdate !== undefined && discountedPriceInUpdate !== undefined) {
+    // Both values provided
+    if (priceInUpdate < 0 || discountedPriceInUpdate > priceInUpdate) {
+      if (!update.$set) {
+        update.$set = {};
+      }
+      update.$set.discountPercent = 0;
+      return;
+    }
+    const hotness = this.views*0.5 + this.discountedPrice*0.3 + this.soldCount*0.2
+    const discount = ((priceInUpdate - discountedPriceInUpdate) / priceInUpdate) * 100;
 
-  update.$set = {
-    ...(update.$set || {}),
-    discountPercent: Math.round(discount * 100) / 100,
-  };
-
-  next();
+    if (!update.$set) {
+      update.$set = {};
+    }
+    update.$set.discountPercent = Math.round(discount * 100) / 100;
+    update.$set.hotness = Math.round(hotness*100)/100
+  }
+  // If only one value is being updated, don't modify discountPercent
+  // The discount would be incorrect without both values
 });
+
 productSchema.index({ soldCount: -1 });
 productSchema.index({ views: -1 });
 productSchema.index({ "rating.avg": -1 });

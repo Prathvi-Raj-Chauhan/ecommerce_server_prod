@@ -1,4 +1,4 @@
-const {model, Schema } = require("mongoose");
+const { model, Schema } = require("mongoose");
 
 const addressSchema = new Schema(
   {
@@ -33,8 +33,10 @@ const addressSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
     },
+    isActive: { type: Boolean, default: true },
+    deletedAt: Date,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = model("Address", addressSchema);

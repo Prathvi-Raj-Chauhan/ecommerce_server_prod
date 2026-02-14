@@ -5,9 +5,10 @@ const PRODUCT = require("../MODELS/products");
 const ORDER = require("../MODELS/order");
 const REVIEW = require("../MODELS/productReview");
 const ADDRESS = require("../MODELS/address");
-const NOTIFICATIONS = require('../MODELS/notifications')
+const NOTIFICATIONS = require("../MODELS/notifications");
 const redisClient = require("../REDIS/redisClient");
-
+const bcrypt = require("bcrypt")
+const saltRounds = 10
 const mongoose = require("mongoose");
 
 const { createTokenForUser } = require("../JWT/auth");
@@ -36,7 +37,7 @@ async function getAllProducts(req, res) {
       // Upstash already returns parsed JSON, no need to JSON.parse
       return res.status(200).json(cachedData);
     }
-    
+
     const [newArrivals, hotProduct, topSellers, topDiscounts] =
       await Promise.all([
         PRODUCT.find({ Pstatus: "Active" })
@@ -73,7 +74,7 @@ async function getAllProducts(req, res) {
       ]);
 
     console.log("ALL PRODUCTS SENT");
-    
+
     const responseData = {
       newArrivals: processProducts(newArrivals),
       hotProducts: processProducts(hotProduct),
@@ -83,7 +84,7 @@ async function getAllProducts(req, res) {
 
     // Use 'setex' (lowercase) for Upstash, and it handles JSON automatically
     await redisClient.setex(cacheKey, 300, responseData);
-    
+
     return res.json(responseData);
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -377,10 +378,32 @@ async function handleAddingAddress(req, res) {
     });
   }
 }
+async function handleDeletingAddress(req, res) {
+  try {
+    const address = await ADDRESS.findById(req.params.id);
+    if (!address) {
+      return res.status(404).json({
+        error: "Address Not found",
+      });
+    }
+    await ADDRESS.findByIdAndUpdate(req.params.id, {
+      isActive: false,
+      deletedAt: new Date(),
+    });
+    return res.status(200).json({
+      status: "Success",
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({
+      error: "Failed to Delete Address",
+    });
+  }
+}
 async function getAllUserAddresses(req, res) {
   const userId = req.user._id;
   try {
-    const addresses = await ADDRESS.find({ user: userId }).lean();
+    const addresses = await ADDRESS.find({ user: userId , isActive: true }).lean();
     if (!addresses) {
       return res.status(404).json({
         message: "NO ADDRESSES ADDED YET",
@@ -737,10 +760,13 @@ async function getOrderDetails(req, res) {
 async function setFcm(req, res) {
   const { fcm } = req.body;
   const userId = req.user._id;
-  console.log(`FCM TOKEN GIVEN BY USER IS ${fcm}`)
-  try{
-    const user = await USER.findByIdAndUpdate(userId, { fcm: fcm },
-       {new: true}); // return the updated document instead of old
+  console.log(`FCM TOKEN GIVEN BY USER IS ${fcm}`);
+  try {
+    const user = await USER.findByIdAndUpdate(
+      userId,
+      { fcm: fcm },
+      { new: true },
+    ); // return the updated document instead of old
     if (!user) {
       return res.status(404).json({
         error: "Invalid User id",
@@ -750,46 +776,79 @@ async function setFcm(req, res) {
       status: "success",
       message: "FCM set successful",
     });
-  }
-  catch(error){
-    console.log(error)
+  } catch (error) {
+    console.log(error);
     return res.status(500).json({
-      error : "Error in setting FCM"
-    })
+      error: "Error in setting FCM",
+    });
   }
 }
-async function getNotificationLogs(req, res){
-  try{
-    const userId = req.user._id
-    if(!userId){
+async function getNotificationLogs(req, res) {
+  try {
+    const userId = req.user._id;
+    if (!userId) {
       res.status(401).json({
-        "error" : "Unauthorized action"
-      })
-    }
-    const user = await USER.findById(userId)
-    if(!user){
-      return res.status(404).json({
-        error : "User not found"
+        error: "Unauthorized action",
       });
     }
-    const notifications = await NOTIFICATIONS.find({user : userId}).sort({createdAt : -1})
-    if(!notifications){
+    const user = await USER.findById(userId);
+    if (!user) {
       return res.status(404).json({
-        status : "No Notifications Yet"
-      })
+        error: "User not found",
+      });
+    }
+    const notifications = await NOTIFICATIONS.find({ user: userId }).sort({
+      createdAt: -1,
+    });
+    if (!notifications) {
+      return res.status(404).json({
+        status: "No Notifications Yet",
+      });
     }
     return res.json({
-      "notification" : notifications
-    })
-  }
-  catch(err){
-    console.log(err)
+      notification: notifications,
+    });
+  } catch (err) {
+    console.log(err);
     return res.status(500).json({
-      error : "Error in sending Notif logs"
-    })
+      error: "Error in sending Notif logs",
+    });
   }
 }
 
+async function handleResettingPassword(req, res){
+  console.log(req.user)
+  const userId = req.user._id
+  try{
+    const user = await USER.findById(userId)
+
+    if(!user){
+      return res.status(404).json({
+        error : "User Not found"
+      })
+    }
+
+    const oldPass = req.body.oldPassword
+    const newPass = req.body.newPassword
+    const correct = await bcrypt.compare(oldPass, user.password)
+    if(!correct){
+      return res.status(401).json({
+        status : "Unauthorized action"
+      })
+    }
+    user.password = newPass
+    await user.save()
+    return res.status(200).json({
+      status : "Successfully resetted password"
+    })
+  }
+  catch(e){
+    console.log(e)
+    return res.status(500).json({
+      error : "Server Error"
+    })
+  }
+}
 
 module.exports = {
   getUserOrderHistory,
@@ -810,6 +869,7 @@ module.exports = {
   handleDeleteItemFromCart,
   getOrderDetails,
   setFcm,
-  getNotificationLogs
+  getNotificationLogs,
+  handleDeletingAddress,
+  handleResettingPassword
 };
-
